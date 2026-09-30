@@ -35,7 +35,6 @@ env/
 # IDE
 .vscode/
 .idea/
-pyrefly.toml
 *.swp
 *.swo
 

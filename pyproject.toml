@@ -1,0 +1,7 @@
+[tool.pyrefly]
+python-version = "3.12"
+search-path = ["."]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
