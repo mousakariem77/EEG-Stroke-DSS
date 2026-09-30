@@ -1,0 +1,104 @@
+# Default configuration for Explainable EEG Stroke DSS
+# Based on: Bouazizi & Ltifi (2024), Decision Support Systems 178
+
+seed: 42
+
+data:
+  raw_path: "data/raw/"
+  processed_path: "data/processed/"
+  features_path: "data/features/"
+  metadata_path: "data/metadata/"
+  dataset_file: "EPoC_Data_14.02.17.xlsx"
+
+preprocessing:
+  # Band-pass filter — FACT FROM PAPER: 0.5–30 Hz
+  filter:
+    low_freq: 0.5
+    high_freq: 30.0
+    filter_type: "fir"
+    filter_order: null  # auto
+
+  # Artifact rejection — FACT FROM PAPER: ±100 μV amplitude threshold
+  artifact:
+    amplitude_threshold: 100  # μV
+    method: "threshold"  # threshold (paper), ica, autoreject
+
+  # Epoching — FACT FROM PAPER: 4-second epochs
+  epoch:
+    duration: 4.0  # seconds
+    overlap: 0.0   # NOT SPECIFIED IN PAPER — default: no overlap
+
+features:
+  # PSD computation — FACT FROM PAPER: FFT with 0.25 Hz resolution
+  psd:
+    method: "welch"
+    window: "hann"
+    nperseg: null  # auto = epoch_length * sfreq
+
+  # Frequency bands — standard EEG bands (paper uses standard definitions)
+  frequency_bands:
+    delta: [0.5, 4.0]
+    theta: [4.0, 8.0]
+    alpha: [8.0, 13.0]
+    beta: [13.0, 30.0]
+
+  # Feature normalization — FACT FROM PAPER: normalize to [0, 1]
+  normalization: "minmax"
+
+model:
+  # ESN parameters — FACT FROM PAPER (Table 1)
+  esn:
+    n_neurons: 200
+    spectral_radius: 0.95
+    sparsity: 0.0          # 0 = fully connected — FACT FROM PAPER
+    noise: 0.01            # regularization — TUNED (paper: 0.001, optimal: 0.01)
+    leaking_rate: 0.7      # TUNED: optimal from sweep (paper: not specified)
+    input_scaling: 0.5     # TUNED: optimal from sweep (paper: not specified)
+    activation: "tanh"     # NOT SPECIFIED — standard default
+    solver: "ridge"        # NOT SPECIFIED — inference: ridge regression
+    n_iterations: 10       # reservoir settle iterations per sample (tabular mode)
+
+  # Ensemble parameters — FACT FROM PAPER: 7 ESNs with bagging
+  ensemble:
+    n_estimators: 7
+    method: "bagging"
+    aggregation: "soft"    # soft voting = average probabilities
+
+evaluation:
+  split:
+    method: "stratified_kfold"  # NOT SPECIFIED IN PAPER
+    n_splits: 5
+    test_size: 0.2
+  metrics:
+    - accuracy
+    - precision
+    - recall
+    - f1
+    - specificity
+    - npv
+
+xai:
+  shap:
+    explainer: "kernel"    # KernelSHAP — model-agnostic (inference)
+    n_samples: 100
+  lime:
+    n_features: 8
+    n_samples: 5000
+
+dss:
+  recommendations:
+    # FACT FROM PAPER: these tests are recommended
+    high_risk_threshold: 0.7
+    tests:
+      - "MRI (Magnetic Resonance Imaging)"
+      - "CBC (Complete Blood Count)"
+      - "BMP (Basic Metabolic Panel)"
+      - "Coagulation Profile"
+      - "Lipid Profile"
+      - "D-Dimer"
+
+experiment:
+  output_dir: "experiments/"
+  save_model: true
+  save_predictions: true
+  save_explanations: true

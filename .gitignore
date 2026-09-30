@@ -1,0 +1,49 @@
+# Data
+data/raw/*
+data/processed/*
+data/features/*
+data/metadata/*
+!data/**/.gitkeep
+
+# Experiments
+experiments/logs/*
+experiments/models/*
+experiments/results/*
+experiments/figures/*
+!experiments/**/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+venv/
+.env/
+env/
+.venv/
+.env
+
+# Testing
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Scratch / temp
+scratch/
