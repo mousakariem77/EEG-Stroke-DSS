@@ -26,10 +26,27 @@ https://datadryad.org/dataset/doi:10.5061/dryad.h6986
 
 Place the file in `data/raw/`
 
-### 3. Run pipeline
+### 3. Run Application & Training
+
+**Start Modern Clinical Web Application (Recommended — FastAPI + React):**
 ```bash
-# Coming soon
+python run_app.py
+```
+*Access at: http://127.0.0.1:8000 (auto-launches in your default browser)*
+
+**Start Legacy Streamlit Dashboard:**
+```bash
+python -m streamlit run app/streamlit_app.py
+```
+
+**Train Ensemble ESN Model (CLI):**
+```bash
 python scripts/train_model.py
+```
+
+**Run Complete Pipeline & Evaluation (LOOCV & XAI):**
+```bash
+python scripts/run_pipeline.py
 ```
 
 ## Dataset

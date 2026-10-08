@@ -81,7 +81,7 @@ def _safe_text(text: str) -> str:
     to Latin-1, replacing any remaining non-Latin-1 characters with '?'.
     """
     import unicodedata
-    normalized = unicodedata.normalize('NFKD', str(text))
+    normalized = unicodedata.normalize('NFKD', text)
     return normalized.encode('latin-1', 'replace').decode('latin-1')
 
 
@@ -96,7 +96,8 @@ def generate_report(
     recommendations: Dict,
     lime_contributions: Optional[List] = None,
     true_label: Optional[str] = None,
-    lime_fig_path: Optional[str] = None
+    lime_fig_path: Optional[str] = None,
+    physician_decisions: Optional[Dict] = None
 ) -> bytes:
     """
     Generate a PDF clinical report for a patient.
@@ -263,6 +264,48 @@ def generate_report(
             pdf.cell(5, 6, '')
             pdf.cell(0, 6, f'- {_safe_text(reason)}',
                      new_x="LMARGIN", new_y="NEXT")
+
+    # ── Physician Decision & Audit Log (Human-in-the-Loop) ───
+    if physician_decisions and 'decisions' in physician_decisions:
+        pdf.ln(4)
+        pdf.section_header('PHYSICIAN REVIEW & AUDIT LOG (HUMAN-IN-THE-LOOP)')
+        pdf.set_font('Helvetica', '', 8)
+        pdf.cell(0, 5, 'Diagnostic test orders reviewed, confirmed, or overridden by attending physician:',
+                 new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(2)
+
+        pdf.table_header([
+            ('Diagnostic Test', 55),
+            ('Decision Status', 35),
+            ('Action Timestamp', 40),
+            ('Physician Notes / Reason', 60)
+        ])
+
+        for dec in physician_decisions['decisions']:
+            name = _safe_text(dec.get('name', ''))
+            status = dec.get('status', 'PENDING')
+            ts = _safe_text(dec.get('timestamp') or 'Pending Review')
+            notes = _safe_text(dec.get('physician_notes') or dec.get('reason') or '-')
+
+            pdf.cell(55, 6, name, border=1)
+            if status == 'CONFIRMED':
+                pdf.set_text_color(46, 125, 50)  # Green
+            elif status == 'CANCELLED':
+                pdf.set_text_color(198, 40, 40)  # Red
+            else:
+                pdf.set_text_color(230, 81, 0)   # Orange
+            pdf.set_font('Helvetica', 'B', 8)
+            pdf.cell(35, 6, status, border=1, align='C')
+            pdf.set_text_color(0, 0, 0)
+            pdf.set_font('Helvetica', '', 8)
+            pdf.cell(40, 6, ts, border=1, align='C')
+            pdf.cell(60, 6, notes[:35], border=1)
+            pdf.ln()
+
+        pdf.ln(4)
+        pdf.set_font('Helvetica', 'I', 8)
+        pdf.cell(0, 5, 'Attending Physician Signature: ___________________________    Date: ______________',
+                 new_x="LMARGIN", new_y="NEXT")
 
     # ── Model Information ────────────────────────────────────
     pdf.ln(6)

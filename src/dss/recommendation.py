@@ -1,71 +1,75 @@
 """
-Module M10: Recommendation Engine
+Module 4 (Decision Support System): Recommendation Engine & Physician Action Control
 
-Rule-based recommendation system for diagnostic tests.
-Generates recommendations based on stroke prediction probability.
+Bouazizi & Ltifi (2024), Section 4.6 & Fig. 8:
+"Based on the case of this patient, the recommendation to the physician suggests
+specific diagnostic tests, such as Magnetic Resonance Imaging (MRI), Complete Blood
+Count (CBC) test, Basic Metabolic Panel (BMP) test, Coagulation Profile test,
+Lipid Profile test, and D-Dimer test... The physician can choose between these
+recommendations, confirm or cancel them."
 
-FACT FROM PAPER:
-    - Recommends: MRI, CBC, BMP, Coagulation Profile, Lipid Profile, D-Dimer
-    - No detailed logic provided (must implement ourselves)
-
-IMPLEMENTATION:
-    - Risk levels based on stroke probability
-    - Tests prioritized by clinical relevance
-    - Reasoning generated from SHAP/LIME feature contributions
+Includes human-in-the-loop audit session:
+- Diagnostic test suggestions based on risk classification.
+- Physician review actions: Confirm, Cancel, Notes.
+- Immutable audit log for clinical governance.
 """
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
+from datetime import datetime
 import numpy as np
 
 
-# Diagnostic tests and their descriptions
+# Diagnostic tests and clinical metadata (Section 4.6)
 DIAGNOSTIC_TESTS = {
     'MRI': {
         'full_name': 'Magnetic Resonance Imaging (MRI)',
-        'description': 'Brain imaging to detect stroke location, type, and extent',
+        'description': 'Brain neuroimaging to detect stroke lesion location, vascular territory, and infarct extent',
         'priority': 1,
         'category': 'imaging'
     },
     'CBC': {
         'full_name': 'Complete Blood Count (CBC)',
-        'description': 'Blood cell counts to detect infection, anemia, or clotting disorders',
+        'description': 'Screening for systemic infection, severe anemia, and thrombocytosis/thrombocytopenia',
         'priority': 2,
         'category': 'blood'
     },
     'BMP': {
         'full_name': 'Basic Metabolic Panel (BMP)',
-        'description': 'Electrolytes, glucose, kidney function assessment',
+        'description': 'Electrolytes, fasting blood glucose, and renal function assessment (BUN/Creatinine)',
         'priority': 3,
         'category': 'blood'
     },
     'Coagulation Profile': {
         'full_name': 'Coagulation Profile (PT/INR, aPTT)',
-        'description': 'Blood clotting function to guide anticoagulation therapy',
+        'description': 'Assessment of intrinsic/extrinsic coagulation pathways to guide acute thrombolysis or anticoagulation',
         'priority': 2,
         'category': 'blood'
     },
     'Lipid Profile': {
         'full_name': 'Lipid Profile',
-        'description': 'Cholesterol and triglyceride levels for cardiovascular risk',
+        'description': 'Total cholesterol, HDL, LDL, and triglyceride levels for atherothrombotic risk assessment',
         'priority': 4,
         'category': 'blood'
     },
     'D-Dimer': {
         'full_name': 'D-Dimer Test',
-        'description': 'Fibrin degradation product to detect active blood clotting',
+        'description': 'Fibrin degradation product assay to detect active intravascular thrombosis or thromboembolism',
         'priority': 3,
         'category': 'blood'
     }
 }
 
 
+class DecisionStatus:
+    PENDING = "PENDING"
+    CONFIRMED = "CONFIRMED"
+    CANCELLED = "CANCELLED"
+
+
 class RecommendationEngine:
     """
-    Rule-based diagnostic recommendation engine.
+    Rule-based clinical recommendation engine.
     
-    Generates test recommendations based on:
-    - Stroke probability from E-ESN
-    - Risk level classification
-    - Top contributing features (from SHAP/LIME)
+    Categorizes stroke risk and suggests evidence-based diagnostic tests.
     """
     
     def __init__(
@@ -78,7 +82,7 @@ class RecommendationEngine:
     
     def classify_risk(self, stroke_probability: float) -> str:
         """
-        Classify risk level based on stroke probability.
+        Classify clinical risk level based on stroke probability.
         
         Returns: 'high', 'medium', or 'low'
         """
@@ -94,45 +98,44 @@ class RecommendationEngine:
         stroke_probability: float,
         predicted_class: str,
         feature_contributions: Optional[List] = None
-    ) -> Dict:
+    ) -> Dict[str, Any]:
         """
-        Generate diagnostic recommendations.
+        Generate diagnostic test recommendations.
         
         Args:
-            stroke_probability: Probability of stroke (0-1)
-            predicted_class: 'Stroke' or 'Control'
-            feature_contributions: Optional LIME/SHAP feature contributions
+            stroke_probability: Probability of stroke [0.0, 1.0] from E-ESN.
+            predicted_class: 'Stroke' or 'Control'.
+            feature_contributions: Optional SHAP/LIME feature impact list.
         
         Returns:
-            dict with risk_level, recommended_tests, reasoning, and actions
+            Dictionary containing risk level, tests, urgency, action, and reasoning.
         """
         risk_level = self.classify_risk(stroke_probability)
         
-        # Select tests based on risk level
+        # Determine candidate tests by risk level
         if risk_level == 'high':
-            test_names = list(DIAGNOSTIC_TESTS.keys())  # All tests
+            test_names = list(DIAGNOSTIC_TESTS.keys())  # All 6 tests
             urgency = 'URGENT'
-            action = 'Immediate comprehensive stroke workup recommended'
+            action = 'Immediate comprehensive acute stroke workup recommended'
         elif risk_level == 'medium':
             test_names = ['MRI', 'CBC', 'BMP', 'Coagulation Profile']
             urgency = 'PRIORITY'
-            action = 'Further evaluation recommended within 24 hours'
+            action = 'Secondary evaluation recommended within 24 hours'
         else:
-            test_names = ['CBC', 'BMP']  # Basic screening
+            test_names = ['CBC', 'BMP']  # Baseline routine screening
             urgency = 'ROUTINE'
-            action = 'Routine follow-up recommended'
+            action = 'Routine clinical follow-up and monitoring recommended'
         
         # Build test details
         recommended_tests = []
         for name in test_names:
             test = DIAGNOSTIC_TESTS[name].copy()
             test['name'] = name
+            test['initial_status'] = DecisionStatus.PENDING
             recommended_tests.append(test)
         
-        # Sort by priority
         recommended_tests.sort(key=lambda t: t['priority'])
         
-        # Build reasoning
         reasoning = self._build_reasoning(
             stroke_probability, predicted_class, risk_level, feature_contributions
         )
@@ -140,7 +143,7 @@ class RecommendationEngine:
         return {
             'risk_level': risk_level,
             'urgency': urgency,
-            'stroke_probability': stroke_probability,
+            'stroke_probability': float(stroke_probability),
             'predicted_class': predicted_class,
             'recommended_tests': recommended_tests,
             'action': action,
@@ -155,17 +158,13 @@ class RecommendationEngine:
         risk_level: str,
         feature_contributions: Optional[List]
     ) -> List[str]:
-        """Build human-readable reasoning for recommendations."""
-        reasons = []
-        
-        reasons.append(
-            f"EEG-based prediction: {predicted_class} "
-            f"(probability: {stroke_probability:.1%})"
-        )
-        reasons.append(f"Risk classification: {risk_level.upper()}")
+        """Construct human-readable physiological rationale."""
+        reasons = [
+            f"EEG E-ESN prediction: {predicted_class} (Probability: {stroke_probability:.1%})",
+            f"Stratified risk tier: {risk_level.upper()}"
+        ]
         
         if feature_contributions:
-            # Top 3 contributing features
             top_features = sorted(
                 feature_contributions, 
                 key=lambda x: abs(x[1]), 
@@ -173,36 +172,121 @@ class RecommendationEngine:
             )[:3]
             
             for feat_name, contrib in top_features:
-                direction = "increases" if contrib > 0 else "decreases"
+                direction = "elevates" if contrib > 0 else "reduces"
                 reasons.append(
-                    f"Key factor: {feat_name} ({direction} stroke risk, "
-                    f"impact: {abs(contrib):.3f})"
+                    f"Biomarker influence: {feat_name} ({direction} acute stroke probability, impact: {abs(contrib):.3f})"
                 )
         
         return reasons
     
-    def format_report(self, recommendation: Dict) -> str:
-        """Format recommendation as readable text report."""
+    def format_report(self, recommendation: Dict[str, Any]) -> str:
+        """Format recommendation as plain text clinical summary."""
         r = recommendation
-        lines = []
-        
-        lines.append("=" * 50)
-        lines.append("DIAGNOSTIC RECOMMENDATION REPORT")
-        lines.append("=" * 50)
-        lines.append(f"Prediction: {r['predicted_class']}")
-        lines.append(f"Stroke Probability: {r['stroke_probability']:.1%}")
-        lines.append(f"Risk Level: {r['risk_level'].upper()}")
-        lines.append(f"Urgency: {r['urgency']}")
-        lines.append(f"Action: {r['action']}")
-        lines.append("")
-        lines.append("Reasoning:")
+        lines = [
+            "=" * 60,
+            "DIAGNOSTIC RECOMMENDATION REPORT",
+            "=" * 60,
+            f"Predicted Diagnosis: {r['predicted_class']}",
+            f"Stroke Risk Probability: {r['stroke_probability']:.1%}",
+            f"Clinical Risk Tier: {r['risk_level'].upper()}",
+            f"Triage Urgency: {r['urgency']}",
+            f"Recommended Clinical Action: {r['action']}",
+            "",
+            "Electrophysiological Rationale:"
+        ]
         for reason in r['reasoning']:
             lines.append(f"  - {reason}")
+        
         lines.append("")
-        lines.append(f"Recommended Tests ({r['n_tests']}):")
+        lines.append(f"Suggested Diagnostic Interventions ({r['n_tests']}):")
         for test in r['recommended_tests']:
             lines.append(f"  [{test['priority']}] {test['full_name']}")
-            lines.append(f"      {test['description']}")
-        lines.append("=" * 50)
+            lines.append(f"      Indication: {test['description']}")
+        lines.append("=" * 60)
         
         return "\n".join(lines)
+
+
+class PhysicianDecisionSession:
+    """
+    Manages interactive physician reviews (Confirm / Cancel) with audit logging.
+    Preserves human-in-the-loop oversight as required by Medical DSS standards.
+    """
+
+    def __init__(self, patient_id: int, recommendations: Dict[str, Any]):
+        self.patient_id = patient_id
+        self.recommendations = recommendations
+        self.decisions: Dict[str, Dict[str, Any]] = {}
+        self.audit_log: List[Dict[str, Any]] = []
+
+        # Initialize pending decisions for all recommended tests
+        for test in recommendations.get('recommended_tests', []):
+            name = test['name']
+            self.decisions[name] = {
+                'name': name,
+                'full_name': test['full_name'],
+                'status': DecisionStatus.PENDING,
+                'timestamp': None,
+                'physician_notes': "",
+                'reason': ""
+            }
+
+    def confirm_test(self, test_name: str, physician_notes: str = "") -> None:
+        """Physician confirms order for a recommended diagnostic test."""
+        if test_name not in self.decisions:
+            raise KeyError(f"Test '{test_name}' is not in the recommended test set.")
+
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.decisions[test_name]['status'] = DecisionStatus.CONFIRMED
+        self.decisions[test_name]['timestamp'] = now_str
+        self.decisions[test_name]['physician_notes'] = physician_notes
+        self.decisions[test_name]['reason'] = ""
+
+        self.audit_log.append({
+            'action': 'CONFIRM',
+            'test_name': test_name,
+            'timestamp': now_str,
+            'notes': physician_notes
+        })
+
+    def cancel_test(self, test_name: str, reason: str = "") -> None:
+        """Physician cancels or overrides a recommended diagnostic test."""
+        if test_name not in self.decisions:
+            raise KeyError(f"Test '{test_name}' is not in the recommended test set.")
+
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.decisions[test_name]['status'] = DecisionStatus.CANCELLED
+        self.decisions[test_name]['timestamp'] = now_str
+        self.decisions[test_name]['reason'] = reason
+
+        self.audit_log.append({
+            'action': 'CANCEL',
+            'test_name': test_name,
+            'timestamp': now_str,
+            'reason': reason
+        })
+
+    def reset_test(self, test_name: str) -> None:
+        """Reset test status back to PENDING."""
+        if test_name in self.decisions:
+            self.decisions[test_name]['status'] = DecisionStatus.PENDING
+            self.decisions[test_name]['timestamp'] = None
+            self.decisions[test_name]['reason'] = ""
+            self.decisions[test_name]['physician_notes'] = ""
+
+    def get_summary(self) -> Dict[str, Any]:
+        """Get summary of physician decisions."""
+        total = len(self.decisions)
+        confirmed = sum(1 for d in self.decisions.values() if d['status'] == DecisionStatus.CONFIRMED)
+        cancelled = sum(1 for d in self.decisions.values() if d['status'] == DecisionStatus.CANCELLED)
+        pending = sum(1 for d in self.decisions.values() if d['status'] == DecisionStatus.PENDING)
+
+        return {
+            'patient_id': self.patient_id,
+            'total_recommended': total,
+            'confirmed': confirmed,
+            'cancelled': cancelled,
+            'pending': pending,
+            'decisions': list(self.decisions.values()),
+            'audit_log': self.audit_log
+        }

@@ -1,6 +1,11 @@
 [tool.pyrefly]
 python-version = "3.12"
-search-path = ["."]
+python-interpreter-path = "C:/Users/Mou Sa Ka Riem/AppData/Local/Programs/Python/Python312/python.exe"
+search-path = [".", "src"]
+site-package-path = [
+    "C:/Users/Mou Sa Ka Riem/AppData/Local/Programs/Python/Python312/Lib/site-packages",
+    "C:/Users/Mou Sa Ka Riem/AppData/Roaming/Python/Python312/site-packages"
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

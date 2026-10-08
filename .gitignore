@@ -47,3 +47,10 @@ Thumbs.db
 
 # Scratch / temp
 scratch/
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Office documents
+*.docx
